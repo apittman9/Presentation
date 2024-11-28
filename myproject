@@ -1,0 +1,126 @@
+# Comprehensive SIR (Susceptible-Infected-Recovered) Epidemiological Transmission Model
+# This script provides a detailed simulation of disease spread using differential equations
+
+# Load required libraries
+# deSolve: Solves ordinary differential equations (ODEs)
+# ggplot2: Creates advanced, publication-quality visualizations
+library(deSolve)
+library(ggplot2)
+
+# SIR Model Function
+# This function defines the core mathematical model of disease transmission
+# Parameters:
+#   - t: Time step (allows model to track changes over time)
+#   - state: Current state of the population (Susceptible, Infected, Recovered)
+#   - parameters: Key model parameters controlling disease dynamics
+sir_model <- function(t, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    # SUSCEPTIBLE POPULATION DYNAMICS
+    # Rate of change = -β * (Susceptible * Infected) / Total Population
+    # Represents the number of susceptible individuals becoming infected
+    # β (beta) is the transmission rate - how quickly disease spreads
+    dS <- -beta * S * I / N
+    
+    # INFECTED POPULATION DYNAMICS
+    # Rate of change = (New Infections) - (Recoveries)
+    # New Infections: β * (Susceptible * Infected) / Total Population
+    # Recoveries: γ (gamma) * Current Infected Population
+    dI <- beta * S * I / N - gamma * I
+    
+    # RECOVERED POPULATION DYNAMICS
+    # Rate of change = Number of individuals recovering from infection
+    # Directly proportional to current infected population and recovery rate
+    dR <- gamma * I
+    
+    # Return the rates of change for each population group
+    return(list(c(dS, dI, dR)))
+  })
+}
+
+# POPULATION INITIALIZATION
+# Define the total population and initial distribution
+N <- 10000    # Total population size
+I0 <- 10      # Initial number of infected individuals
+R0 <- 0       # Initial number of recovered individuals
+S0 <- N - I0 - R0  # Calculate initial susceptible population
+
+# DISEASE TRANSMISSION PARAMETERS
+# These parameters control the fundamental dynamics of disease spread
+beta <- 0.3   # Transmission rate 
+            # Higher values mean faster disease spread
+            # Represents contacts that lead to infection
+gamma <- 0.1 # Recovery rate
+            # Proportion of infected individuals who recover per time unit
+            # Lower values mean longer infection duration
+
+# TIME CONFIGURATION
+# Define the time steps for the simulation
+times <- seq(0, 100, by = 1)  # Simulate for 100 time units, with 1 unit increments
+
+# INITIAL STATE CONFIGURATION
+# Combine initial population and parameter values
+state <- c(S = S0, I = I0, R = R0)
+parameters <- c(N = N, beta = beta, gamma = gamma)
+
+# SOLVE DIFFERENTIAL EQUATIONS
+# Use numerical integration to model population changes over time
+output <- ode(
+  y = state,           # Initial population state
+  times = times,       # Time steps to evaluate
+  func = sir_model,    # Model dynamics function
+  parms = parameters   # Transmission parameters
+)
+
+# Convert simulation output to a data frame for easier manipulation
+output_df <- as.data.frame(output)
+
+# VISUALIZATION
+# Create a comprehensive plot showing population dynamics
+ggplot(output_df, aes(x = time)) +
+  # Susceptible population (Blue): Decreasing over time
+  geom_line(aes(y = S, color = "Susceptible"), linewidth = 1) +
+  
+  # Infected population (Red): Bell-curve shape, peaks then declines
+  geom_line(aes(y = I, color = "Infected"), linewidth = 1) +
+  
+  # Recovered population (Green): Increasing over time, eventually plateaus
+  geom_line(aes(y = R, color = "Recovered"), linewidth = 1) +
+  
+  # Plot labeling and aesthetic choices
+  labs(
+    title = "SIR Model: Disease Transmission Dynamics",
+    subtitle = paste(
+      "β (Transmission Rate):", beta, 
+      "| γ (Recovery Rate):", gamma
+    ),
+    x = "Time Steps",
+    y = "Population Count",
+    color = "Population Group"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c(
+    "Susceptible" = "blue", 
+    "Infected" = "red", 
+    "Recovered" = "green"
+  )) +
+  # Add a text annotation explaining key model insights
+  annotate(
+    "text", 
+    x = max(times) * 0.7, 
+    y = max(output_df$I) * 1.1, 
+    label = "Key Observations:\n- Peak Infection\n- Herd Immunity\n- Disease Extinction",
+    color = "darkgray"
+  )
+
+# Optional: Save the visualization for further analysis or reporting
+ggsave("detailed_sir_model_plot.png", width = 10, height = 6, dpi = 300)
+
+# ADDITIONAL ANALYSIS: Compute and print key epidemiological metrics
+peak_infection <- max(output_df$I)
+time_to_peak <- output_df$time[which.max(output_df$I)]
+
+cat("Epidemiological Insights:\n")
+cat("Peak Infected Population:", round(peak_infection), "\n")
+cat("Time to Peak Infection:", round(time_to_peak), "time units\n")
+cat("Final Recovered Proportion:", 
+    round(output_df$R[nrow(output_df)] / N * 100, 2), "%\n")
